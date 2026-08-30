@@ -1,0 +1,51 @@
+{
+  "project_name": "SGAG-PDS",
+  "specify_version": "1.0.1",
+  "integration": "antigravity-agent",
+  "created_at": "2026-08-30T13:54:00Z",
+  "structure": {
+    "constitution": ".specify/constitution.md",
+    "spec": ".specify/spec.md",
+    "specs_dir": ".specify/specs",
+    "plan": ".specify/plan.md",
+    "tasks": ".specify/tasks.md"
+  },
+  "skills": {
+    "speckit-constitution": {
+      "command": "/speckit.constitution",
+      "target": ".specify/constitution.md",
+      "description": "Create or update project governing principles and development guidelines"
+    },
+    "speckit-specify": {
+      "command": "/speckit.specify",
+      "target": ".specify/spec.md",
+      "specs_dir": ".specify/specs",
+      "description": "Define what you want to build (requirements and user stories)"
+    },
+    "speckit-plan": {
+      "command": "/speckit.plan",
+      "target": ".specify/plan.md",
+      "description": "Create technical implementation plans with your chosen tech stack"
+    },
+    "speckit-tasks": {
+      "command": "/speckit.tasks",
+      "target": ".specify/tasks.md",
+      "description": "Generate actionable task lists for implementation"
+    },
+    "speckit-taskstoissues": {
+      "command": "/speckit.taskstoissues",
+      "target": ".specify/tasks.md",
+      "description": "Convert generated task lists into GitHub issues for tracking and execution"
+    },
+    "speckit-implement": {
+      "command": "/speckit.implement",
+      "sources": [".specify/constitution.md", ".specify/spec.md", ".specify/plan.md", ".specify/tasks.md"],
+      "description": "Execute all tasks to build the feature according to the plan"
+    },
+    "speckit-converge": {
+      "command": "/speckit.converge",
+      "sources": [".specify/constitution.md", ".specify/spec.md", ".specify/plan.md", ".specify/tasks.md"],
+      "description": "Assess the codebase against spec/plan/tasks and append remaining work as new tasks"
+    }
+  }
+}
