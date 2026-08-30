@@ -1,0 +1,36 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-primary: var(--primary);
+  --color-primary-strong: var(--primary-strong);
+  --color-secondary: var(--secondary);
+  --color-secondary-strong: var(--secondary-strong);
+  --color-accent: var(--accent);
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-text: var(--text);
+  --color-text-muted: var(--text-muted);
+  --color-danger: var(--danger);
+  --color-warning: var(--warning);
+}
+
+:root {
+  /* Paleta High-Contrast Neon / Dark Mode (docs/AGENT_RULES.md) */
+  --primary: #a855f7;      /* Roxo elétrico */
+  --primary-strong: #7c3aed;
+  --secondary: #22ff88;    /* Verde neon */
+  --secondary-strong: #16c47f;
+  --accent: #22d3ee;       /* Ciano neon */
+  --bg: #09090f;           /* Fundo escuro de alto contraste */
+  --surface: #131322;
+  --text: #f4f4f5;
+  --text-muted: #a1a1aa;
+  --danger: #ef4444;
+  --warning: #f59e0b;
+}
+
+body {
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
