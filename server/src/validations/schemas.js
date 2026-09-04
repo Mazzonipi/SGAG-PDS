@@ -30,6 +30,29 @@ export const loginSchema = z.object({
 });
 
 /**
+ * Schema de cadastro (Professor, Líder ou Vice-Líder).
+ * Inclui confirmação de senha, senha forte e papel do perfil.
+ */
+export const cadastrarSchema = z
+  .object({
+    nome: z.string().min(3, 'O nome deve ter no minimo 3 caracteres').max(255),
+    email: z.string().email('E-mail institucional invalido'),
+    senha: z
+      .string()
+      .min(8, 'A senha deve ter no minimo 8 caracteres')
+      .regex(/[a-zA-Z]/, 'A senha deve conter letras')
+      .regex(/[0-9]/, 'A senha deve conter numeros'),
+    confirmar_senha: z.string(),
+    role: z.enum(['professor', 'lider', 'vice_lider'], {
+      errorMap: () => ({ message: 'Tipo de perfil invalido' }),
+    }),
+  })
+  .refine((dados) => dados.senha === dados.confirmar_senha, {
+    message: 'As senhas nao coincidem',
+    path: ['confirmar_senha'],
+  });
+
+/**
  * Schema de cadastro de perfil (exclusivo do Professor).
  * Apenas lider e vice_lider podem ser cadastrados — segundo professor e
  * aluno comum são bloqueados na camada de validação.
@@ -55,6 +78,18 @@ export const listarPerfisSchema = z.object({
  */
 export const criarGrupoSchema = z.object({
   nome: z.string().min(1, 'O nome do grupo e obrigatorio').max(100),
+});
+
+/**
+ * Schema de criação completa de um grupo (Novo Grupo):
+ * nome, Líder, Vice-Líder e integrantes (até 7).
+ */
+export const criarGrupoCompletoSchema = z.object({
+  turma_id: z.string().uuid('Turma invalida'),
+  nome: z.string().min(1, 'O nome do grupo e obrigatorio').max(100),
+  lider_id: z.string().uuid('Perfil de lider invalido'),
+  vice_lider_id: z.string().uuid('Perfil de vice-lider invalido'),
+  integrantes: z.array(z.string().min(1).max(255)).max(7).optional().default([]),
 });
 
 /**

@@ -4,7 +4,10 @@ import { registrarAuditoria } from '../utils/audit.js';
 
 /**
  * Cria a conta de acesso (auth.users) e o perfil (profiles) de um
- * Líder ou Vice-Líder. Executa apenas pelo Professor.
+ * Líder ou Vice-Líder. Executado apenas pelo Professor.
+ *
+ * O usuário é criado com user_metadata { role, nome }; a trigger do banco
+ * valida o papel e cria o perfil automaticamente em profiles.
  *
  * Bloqueios de segurança aplicados:
  * - Segundo professor: rejeitado (role === 'professor').
@@ -32,29 +35,33 @@ export async function criarPerfil({ nome, email, senha, role }, professorId) {
     email,
     password: senha,
     email_confirm: true,
+    user_metadata: { role, nome },
   });
 
   if (error || !data?.user) {
-    throw new AppError(400, `Falha ao criar usuario de autenticacao: ${error?.message ?? 'erro desconhecido'}`);
+    const mensagem = error?.message || '';
+    if (/already|registered|duplicate|exist/i.test(mensagem)) {
+      throw new AppError(400, 'Este e-mail ja esta cadastrado.');
+    }
+    throw new AppError(400, 'Nao foi possivel criar o perfil. Verifique os dados e tente novamente.');
   }
 
   const userId = data.user.id;
 
-  const { error: insertError } = await supabaseAdmin.from('profiles').insert({
-    id: userId,
-    nome,
-    email,
-    role,
-    is_active: true,
-  });
+  // A trigger já criou o perfil; apenas o buscamos para retornar.
+  const { data: perfil, error: perfilError } = await supabaseAdmin
+    .from('profiles')
+    .select('id, nome, email, role, is_active')
+    .eq('id', userId)
+    .maybeSingle();
 
-  if (insertError) {
-    throw new AppError(400, `Falha ao criar perfil: ${insertError.message}`);
+  if (perfilError || !perfil) {
+    throw new AppError(500, 'Falha ao criar o perfil. Tente novamente.');
   }
 
   await registrarAuditoria('profiles', userId, 'INSERT', professorId, { nome, email, role });
 
-  return { id: userId, nome, email, role };
+  return { id: perfil.id, nome: perfil.nome, email: perfil.email, role: perfil.role };
 }
 
 /**

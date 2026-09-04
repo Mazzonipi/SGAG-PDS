@@ -68,6 +68,7 @@ export function createSupabaseMock() {
       'eq',
       'neq',
       'in',
+      'or',
       'ilike',
       'order',
       'limit',

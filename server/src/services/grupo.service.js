@@ -370,3 +370,277 @@ export async function designarViceLider({ grupoId, perfilId, professorId }) {
 
   return { id: grupoId, vice_lider_id: perfilId };
 }
+
+/**
+ * Obtém o detalhe completo de um grupo (página de expansão do Professor):
+ * líder, vice-líder, integrantes com avaliação e média geral do grupo.
+ *
+ * @param {string} grupoId UUID do grupo.
+ * @returns {Promise<Object>} Detalhe do grupo.
+ * @throws {AppError} 404 se o grupo não existir.
+ */
+export async function obterGrupoDetalhado(grupoId) {
+  const { data: grupo, error } = await supabaseAdmin
+    .from('grupos')
+    .select(
+      'id, turma_id, nome, lider_id, vice_lider_id, ' +
+        'lider:profiles!lider_id(id, nome, email), ' +
+        'vice:profiles!vice_lider_id(id, nome, email)'
+    )
+    .eq('id', grupoId)
+    .maybeSingle();
+
+  if (error || !grupo) {
+    throw new AppError(404, 'Grupo nao encontrado');
+  }
+
+  const [resultIntegrantes, resultAvaliacoes] = await Promise.all([
+    supabaseAdmin.from('integrantes').select('id, nome_aluno').eq('grupo_id', grupoId).order('nome_aluno'),
+    supabaseAdmin.from('avaliacoes').select('*').eq('grupo_id', grupoId),
+  ]);
+
+  if (resultIntegrantes.error || resultAvaliacoes.error) {
+    throw new AppError(500, 'Falha ao carregar detalhes do grupo');
+  }
+
+  const integrantes = resultIntegrantes.data.map((integrante) => {
+    const avaliacao = resultAvaliacoes.data.find((a) => a.integrante_id === integrante.id) ?? null;
+    return {
+      id: integrante.id,
+      nome_aluno: integrante.nome_aluno,
+      avaliacao: avaliacao
+        ? {
+            id: avaliacao.id,
+            avaliador_id: avaliacao.avaliador_id,
+            interesse: avaliacao.interesse,
+            entrega_prazo: avaliacao.entrega_prazo,
+            participacao: avaliacao.participacao,
+            qualidade_trabalho: avaliacao.qualidade_trabalho,
+            respeito_grupo: avaliacao.respeito_grupo,
+            nota_total: avaliacao.nota_total,
+            alterado_por_professor: avaliacao.alterado_por_professor,
+            comentario_esclarecimento: avaliacao.comentario_esclarecimento,
+          }
+        : null,
+    };
+  });
+
+  const notas = resultAvaliacoes.data.map((a) => Number(a.nota_total)).filter((n) => !Number.isNaN(n));
+  const mediaGeral = notas.length > 0 ? notas.reduce((soma, n) => soma + n, 0) / notas.length : null;
+
+  return {
+    id: grupo.id,
+    turma_id: grupo.turma_id,
+    nome: grupo.nome,
+    lider: grupo.lider,
+    vice: grupo.vice,
+    integrantes,
+    media_geral: mediaGeral === null ? null : Number(mediaGeral.toFixed(2)),
+  };
+}
+
+/**
+ * Retorna o grupo do qual o usuário autenticado é Líder ou Vice-Líder.
+ * Usado pela visão de Líder/Vice-Líder (mostra apenas o seu grupo).
+ *
+ * @param {string} userId UUID do usuário autenticado.
+ * @returns {Promise<Object>} Grupo do usuário com a turma e integrantes.
+ * @throws {AppError} 404 se o usuário não liderar nenhum grupo.
+ */
+export async function obterMeuGrupo(userId) {
+  const { data: grupo, error } = await supabaseAdmin
+    .from('grupos')
+    .select('id, turma_id, nome, lider_id, vice_lider_id')
+    .or(`lider_id.eq.${userId},vice_lider_id.eq.${userId}`)
+    .maybeSingle();
+
+  if (error || !grupo) {
+    throw new AppError(404, 'Nenhum grupo encontrado para o seu perfil');
+  }
+
+  const [turma, integrantes] = await Promise.all([
+    supabaseAdmin.from('turmas').select('id, nome').eq('id', grupo.turma_id).maybeSingle(),
+    supabaseAdmin.from('integrantes').select('id, nome_aluno').eq('grupo_id', grupo.id).order('nome_aluno'),
+  ]);
+
+  if (turma.error || integrantes.error) {
+    throw new AppError(500, 'Falha ao carregar o grupo');
+  }
+
+  return {
+    id: grupo.id,
+    turma_id: grupo.turma_id,
+    turma_nome: turma.data?.nome ?? null,
+    nome: grupo.nome,
+    lider_id: grupo.lider_id,
+    vice_lider_id: grupo.vice_lider_id,
+    integrantes: integrantes.data,
+  };
+}
+
+/**
+ * Cria um grupo de forma completa: define Líder, Vice-Líder e adiciona
+ * os integrantes de uma única vez (fluxo "Novo Grupo").
+ *
+ * Respeita os limites: máx. 5 grupos por turma e máx. 7 integrantes por grupo.
+ * O Líder e o Vice-Líder devem ser perfis já cadastrados com os papéis corretos.
+ *
+ * @param {Object} params Parâmetros da criação.
+ * @param {string} params.turmaId UUID da turma.
+ * @param {string} params.nome Nome do grupo.
+ * @param {string} params.liderId UUID do perfil Líder.
+ * @param {string} params.viceLiderId UUID do perfil Vice-Líder.
+ * @param {string[]} params.integrantes Nomes dos integrantes.
+ * @param {string} params.professorId UUID do professor executor.
+ * @returns {Promise<Object>} Grupo criado com seus integrantes.
+ * @throws {AppError} Em caso de limites atingidos ou perfis inválidos.
+ */
+export async function criarGrupoCompleto({
+  turmaId,
+  nome,
+  liderId,
+  viceLiderId,
+  integrantes,
+  professorId,
+}) {
+  await buscarTurma(turmaId);
+
+  const { count, error: countError } = await supabaseAdmin
+    .from('grupos')
+    .select('id', { count: 'exact', head: true })
+    .eq('turma_id', turmaId);
+
+  if (countError) {
+    throw new AppError(500, 'Falha ao validar limite de grupos');
+  }
+
+  if ((count ?? 0) >= LIMITE_GRUPOS_POR_TURMA) {
+    throw new AppError(400, `A turma ja atingiu o limite maximo de ${LIMITE_GRUPOS_POR_TURMA} grupos`);
+  }
+
+  const lider = await buscarPerfil(liderId);
+  if (lider.role !== 'lider') {
+    throw new AppError(400, 'O perfil escolhido como lider nao possui o papel de lider');
+  }
+
+  const vice = await buscarPerfil(viceLiderId);
+  if (vice.role !== 'vice_lider') {
+    throw new AppError(400, 'O perfil escolhido como vice-lider nao possui o papel de vice_lider');
+  }
+
+  if (liderId === viceLiderId) {
+    throw new AppError(400, 'O lider e o vice-lider devem ser pessoas diferentes');
+  }
+
+  // Líder e Vice-Líder contam como integrantes do grupo (roster máximo 7).
+  const membros = [lider.nome, vice.nome].map((n) => String(n).trim()).filter(Boolean);
+
+  const nomesAlunos = (integrantes || []).map((n) => String(n).trim()).filter(Boolean);
+  for (const aluno of nomesAlunos) {
+    if (!membros.includes(aluno)) {
+      membros.push(aluno);
+    }
+  }
+
+  if (membros.length > LIMITE_INTEGRANTES_POR_GRUPO) {
+    throw new AppError(400, `Maximo de ${LIMITE_INTEGRANTES_POR_GRUPO} integrantes por grupo (incluindo lider e vice-lider)`);
+  }
+
+  const { data: grupo, error } = await supabaseAdmin
+    .from('grupos')
+    .insert({ turma_id: turmaId, nome, lider_id: liderId, vice_lider_id: viceLiderId })
+    .select()
+    .single();
+
+  if (error) {
+    if (error.code === '23505') {
+      throw new AppError(409, 'Ja existe um grupo com esse nome nesta turma');
+    }
+    throw new AppError(400, `Falha ao criar grupo: ${error.message}`);
+  }
+
+  await registrarAuditoria('grupos', grupo.id, 'INSERT', professorId, {
+    turma_id: turmaId,
+    nome,
+    lider_id: liderId,
+    vice_lider_id: viceLiderId,
+  });
+
+  const integrantesCriados = [];
+  for (const nomeMembro of membros) {
+    const { data: integrante, error: integranteError } = await supabaseAdmin
+      .from('integrantes')
+      .insert({ grupo_id: grupo.id, nome_aluno: nomeMembro })
+      .select()
+      .single();
+
+    if (integranteError) {
+      throw new AppError(400, `Falha ao adicionar integrante: ${integranteError.message}`);
+    }
+
+    integrantesCriados.push(integrante);
+    await registrarAuditoria('integrantes', integrante.id, 'INSERT', professorId, {
+      grupo_id: grupo.id,
+      nome_aluno: nomeMembro,
+    });
+  }
+
+  return {
+    id: grupo.id,
+    turma_id: turmaId,
+    nome,
+    lider_id: liderId,
+    vice_lider_id: viceLiderId,
+    integrantes: integrantesCriados.map((i) => i.nome_aluno),
+  };
+}
+
+/**
+ * Renomeia um integrante do grupo.
+ *
+ * @param {Object} params Parâmetros da operação.
+ * @param {string} params.grupoId UUID do grupo.
+ * @param {string} params.integranteId UUID do integrante.
+ * @param {string} params.nomeAluno Novo nome do integrante.
+ * @param {string} params.professorId UUID do professor executor.
+ * @returns {Promise<Object>} Integrante atualizado.
+ */
+export async function renomearIntegrante({ grupoId, integranteId, nomeAluno, professorId }) {
+  await buscarGrupo(grupoId);
+
+  const { data: integrante, error: buscaError } = await supabaseAdmin
+    .from('integrantes')
+    .select('id, nome_aluno')
+    .eq('id', integranteId)
+    .eq('grupo_id', grupoId)
+    .maybeSingle();
+
+  if (buscaError || !integrante) {
+    throw new AppError(404, 'Integrante nao encontrado no grupo');
+  }
+
+  const nome = String(nomeAluno).trim();
+  if (!nome) {
+    throw new AppError(400, 'O nome do aluno e obrigatorio');
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from('integrantes')
+    .update({ nome_aluno: nome })
+    .eq('id', integranteId)
+    .eq('grupo_id', grupoId)
+    .select()
+    .single();
+
+  if (error) {
+    throw new AppError(400, `Falha ao renomear integrante: ${error.message}`);
+  }
+
+  await registrarAuditoria('integrantes', integranteId, 'UPDATE', professorId, {
+    grupo_id: grupoId,
+    nome_antigo: integrante.nome_aluno,
+    nome_novo: nome,
+  });
+
+  return data;
+}

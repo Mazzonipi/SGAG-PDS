@@ -1,5 +1,5 @@
 import { asyncHandler } from '../middlewares/error.middleware.js';
-import { loginSchema } from '../validations/schemas.js';
+import { cadastrarSchema, loginSchema } from '../validations/schemas.js';
 import * as authService from '../services/auth.service.js';
 
 /**
@@ -9,6 +9,15 @@ export const login = asyncHandler(async (req, res) => {
   const dados = loginSchema.parse(req.body);
   const resultado = await authService.login(dados);
   res.json(resultado);
+});
+
+/**
+ * POST /api/auth/cadastrar — Cadastra Professor, Líder ou Vice-Líder.
+ */
+export const cadastrar = asyncHandler(async (req, res) => {
+  const dados = cadastrarSchema.parse(req.body);
+  const perfil = await authService.registrarUsuario(dados);
+  res.status(201).json({ perfil });
 });
 
 /**

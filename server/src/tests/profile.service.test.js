@@ -22,7 +22,10 @@ describe('profileService.criarPerfil', () => {
       data: { user: { id: 'lider-1' } },
       error: null,
     });
-    supabase.queue('profiles', { data: null, error: null });
+    supabase.queue('profiles', {
+      data: { id: 'lider-1', nome: 'Aluno Lider', email: 'lider@escola.com', role: 'lider', is_active: true },
+      error: null,
+    });
     supabase.queue('audit_logs', { data: null, error: null });
 
     const resultado = await criarPerfil(
@@ -35,6 +38,7 @@ describe('profileService.criarPerfil', () => {
       email: 'lider@escola.com',
       password: 'senha123',
       email_confirm: true,
+      user_metadata: { role: 'lider', nome: 'Aluno Lider' },
     });
     expect(supabase.from('audit_logs')).toBeDefined();
   });

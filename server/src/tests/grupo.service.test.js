@@ -8,6 +8,10 @@ import {
   designarLider,
   designarViceLider,
   listarGruposDaTurma,
+  obterGrupoDetalhado,
+  obterMeuGrupo,
+  renomearIntegrante,
+  criarGrupoCompleto,
 } from '../services/grupo.service.js';
 
 const holder = vi.hoisted(() => ({ supabase: null }));
@@ -207,5 +211,176 @@ describe('grupoService.listarGruposDaTurma', () => {
 
     expect(grupos).toHaveLength(1);
     expect(grupos[0].lider.nome).toBe('Ana');
+  });
+});
+
+describe('grupoService.obterGrupoDetalhado', () => {
+  it('retorna detalhe do grupo com lider, vice, integrantes e media geral', async () => {
+    const supabase = holder.supabase;
+
+    supabase.queue('grupos', {
+      data: {
+        id: 'g1',
+        turma_id: 'turma-3a',
+        nome: 'Grupo Alfa',
+        lider: { id: 'l1', nome: 'Ana', email: 'ana@gmail.com' },
+        vice: { id: 'v1', nome: 'Bia', email: 'bia@gmail.com' },
+      },
+      error: null,
+    });
+    supabase.queue('integrantes', { data: [{ id: 'i1', nome_aluno: 'Carlos' }], error: null });
+    supabase.queue('avaliacoes', {
+      data: [{ id: 'av1', integrante_id: 'i1', nota_total: 0.85, alterado_por_professor: false }],
+      error: null,
+    });
+
+    const detalhe = await obterGrupoDetalhado('g1');
+
+    expect(detalhe.lider.nome).toBe('Ana');
+    expect(detalhe.vice.nome).toBe('Bia');
+    expect(detalhe.integrantes[0].nome_aluno).toBe('Carlos');
+    expect(detalhe.integrantes[0].avaliacao.nota_total).toBe(0.85);
+    expect(detalhe.media_geral).toBe(0.85);
+  });
+
+  it('lanca HTTP 404 quando o grupo nao existe', async () => {
+    const supabase = holder.supabase;
+
+    supabase.queue('grupos', { data: null, error: null });
+
+    await expect(obterGrupoDetalhado('inexistente')).rejects.toMatchObject({ statusCode: 404 });
+  });
+});
+
+describe('grupoService.obterMeuGrupo', () => {
+  it('retorna o grupo do lider autenticado com turma e integrantes', async () => {
+    const supabase = holder.supabase;
+
+    supabase.queue('grupos', {
+      data: { id: 'g1', turma_id: 'turma-3a', nome: 'Grupo Alfa', lider_id: 'l1', vice_lider_id: 'v1' },
+      error: null,
+    });
+    supabase.queue('turmas', { data: { id: 'turma-3a', nome: '3A' }, error: null });
+    supabase.queue('integrantes', { data: [{ id: 'i1', nome_aluno: 'Carlos' }], error: null });
+
+    const grupo = await obterMeuGrupo('l1');
+
+    expect(grupo.turma_nome).toBe('3A');
+    expect(grupo.integrantes).toHaveLength(1);
+    expect(grupo.lider_id).toBe('l1');
+  });
+
+  it('lanca HTTP 404 quando o usuario nao lidera nenhum grupo', async () => {
+    const supabase = holder.supabase;
+
+    supabase.queue('grupos', { data: null, error: null });
+
+    await expect(obterMeuGrupo('sem-grupo')).rejects.toMatchObject({ statusCode: 404 });
+  });
+});
+
+describe('grupoService.criarGrupoCompleto', () => {
+  const LIDER = '11111111-1111-4111-8111-111111111111';
+  const VICE = '22222222-2222-4222-8222-222222222222';
+
+  it('cria o grupo completo com lider, vice e integrantes', async () => {
+    const supabase = holder.supabase;
+
+    supabase.queue('turmas', { data: TURMA, error: null });
+    supabase.queue('grupos', { data: [], error: null, count: 1 });
+    supabase.queue('profiles', { data: { id: LIDER, nome: 'Ana Lider', role: 'lider', is_active: true }, error: null });
+    supabase.queue('profiles', { data: { id: VICE, nome: 'Bia Vice', role: 'vice_lider', is_active: true }, error: null });
+    supabase.queue('grupos', { data: { id: 'g1', turma_id: 'turma-3a', nome: 'Grupo IA' }, error: null });
+    supabase.queue('audit_logs', { data: null, error: null });
+    supabase.queue('integrantes', { data: { id: 'i1', grupo_id: 'g1', nome_aluno: 'Ana Lider' }, error: null });
+    supabase.queue('audit_logs', { data: null, error: null });
+    supabase.queue('integrantes', { data: { id: 'i2', grupo_id: 'g1', nome_aluno: 'Bia Vice' }, error: null });
+    supabase.queue('audit_logs', { data: null, error: null });
+    supabase.queue('integrantes', { data: { id: 'i3', grupo_id: 'g1', nome_aluno: 'Carlos' }, error: null });
+    supabase.queue('audit_logs', { data: null, error: null });
+
+    const grupo = await criarGrupoCompleto({
+      turmaId: 'turma-3a',
+      nome: 'Grupo IA',
+      liderId: LIDER,
+      viceLiderId: VICE,
+      integrantes: ['Carlos'],
+      professorId: 'prof-1',
+    });
+
+    expect(grupo.lider_id).toBe(LIDER);
+    expect(grupo.vice_lider_id).toBe(VICE);
+    expect(grupo.integrantes).toEqual(['Ana Lider', 'Bia Vice', 'Carlos']);
+  });
+
+  it('rejeita quando o perfil de lider nao possui o papel lider', async () => {
+    const supabase = holder.supabase;
+
+    supabase.queue('turmas', { data: TURMA, error: null });
+    supabase.queue('grupos', { data: [], error: null, count: 1 });
+    supabase.queue('profiles', { data: { id: VICE, role: 'vice_lider', is_active: true }, error: null });
+
+    await expect(
+      criarGrupoCompleto({
+        turmaId: 'turma-3a',
+        nome: 'Grupo IA',
+        liderId: VICE,
+        viceLiderId: VICE,
+        integrantes: [],
+        professorId: 'prof-1',
+      })
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      message: 'O perfil escolhido como lider nao possui o papel de lider',
+    });
+  });
+
+  it('bloqueia a criacao do 6o grupo com HTTP 400', async () => {
+    const supabase = holder.supabase;
+
+    supabase.queue('turmas', { data: TURMA, error: null });
+    supabase.queue('grupos', { data: [], error: null, count: 5 });
+
+    await expect(
+      criarGrupoCompleto({
+        turmaId: 'turma-3a',
+        nome: 'Grupo Extra',
+        liderId: LIDER,
+        viceLiderId: VICE,
+        integrantes: [],
+        professorId: 'prof-1',
+      })
+    ).rejects.toMatchObject({ statusCode: 400 });
+  });
+});
+
+describe('grupoService.renomearIntegrante', () => {
+  it('renomeia um integrante do grupo', async () => {
+    const supabase = holder.supabase;
+
+    supabase.queue('grupos', { data: GRUPO, error: null });
+    supabase.queue('integrantes', { data: { id: 'i1', grupo_id: 'g1', nome_aluno: 'Carlos' }, error: null });
+    supabase.queue('integrantes', { data: { id: 'i1', grupo_id: 'g1', nome_aluno: 'Carlos Silva' }, error: null });
+    supabase.queue('audit_logs', { data: null, error: null });
+
+    const integrante = await renomearIntegrante({
+      grupoId: 'g1',
+      integranteId: 'i1',
+      nomeAluno: 'Carlos Silva',
+      professorId: 'prof-1',
+    });
+
+    expect(integrante.nome_aluno).toBe('Carlos Silva');
+  });
+
+  it('lanca HTTP 404 quando o integrante nao pertence ao grupo', async () => {
+    const supabase = holder.supabase;
+
+    supabase.queue('grupos', { data: GRUPO, error: null });
+    supabase.queue('integrantes', { data: null, error: null });
+
+    await expect(
+      renomearIntegrante({ grupoId: 'g1', integranteId: 'i999', nomeAluno: 'X', professorId: 'prof-1' })
+    ).rejects.toMatchObject({ statusCode: 404 });
   });
 });

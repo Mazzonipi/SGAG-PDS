@@ -1,12 +1,95 @@
-function App() {
-  return (
-    <main className="min-h-screen flex flex-col items-center justify-center gap-4">
-      <h1 className="text-4xl font-bold text-primary">SGAG-PDS</h1>
-      <p className="text-text-muted">
-        Ambiente base configurado - Front-End React + Vite + Tailwind
-      </p>
-    </main>
-  );
+import { Routes, Route, Navigate } from 'react-router-dom';
+import { ThemeProvider } from './theme/ThemeProvider.jsx';
+import { AuthProvider, useAuth } from './auth/AuthContext.jsx';
+import Login from './screens/Login.jsx';
+import RegisterForm from './screens/RegisterForm.jsx';
+import Dashboard from './screens/Dashboard.jsx';
+import Grupos from './screens/Grupos.jsx';
+import NovoGrupo from './screens/NovoGrupo.jsx';
+import DetalheGrupo from './screens/DetalheGrupo.jsx';
+
+/**
+ * Guarda de rota: exige sessão autenticada; caso contrário redireciona ao login.
+ *
+ * @param {Object} props Propriedades do guarda.
+ * @param {React.ReactNode} props.children Conteúdo protegido.
+ * @returns {JSX.Element} Conteúdo ou redirecionamento.
+ */
+function RequireAuth({ children }) {
+  const { session } = useAuth();
+  if (!session) {
+    return <Navigate to="/login" replace />;
+  }
+  return children;
 }
 
-export default App;
+/**
+ * Guarda de rota: apenas Professor.
+ *
+ * @param {Object} props Propriedades do guarda.
+ * @param {React.ReactNode} props.children Conteúdo restrito ao professor.
+ * @returns {JSX.Element} Conteúdo ou redirecionamento.
+ */
+function RequireProfessor({ children }) {
+  const { session } = useAuth();
+  if (!session) {
+    return <Navigate to="/login" replace />;
+  }
+  if (session.user.role !== 'professor') {
+    return <Navigate to="/dashboard" replace />;
+  }
+  return children;
+}
+
+/**
+ * Componente raiz: provedores de tema/autenticação e rotas da aplicação.
+ *
+ * @returns {JSX.Element} Aplicação.
+ */
+export default function App() {
+  return (
+    <ThemeProvider>
+      <AuthProvider>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="/cadastro" element={<Navigate to="/cadastro/professor" replace />} />
+          <Route path="/cadastro/professor" element={<RegisterForm />} />
+          <Route
+            path="/dashboard"
+            element={
+              <RequireAuth>
+                <Dashboard />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/grupos"
+            element={
+              <RequireProfessor>
+                <Grupos />
+              </RequireProfessor>
+            }
+          />
+          <Route
+            path="/grupos/novo/:turmaId"
+            element={
+              <RequireProfessor>
+                <NovoGrupo />
+              </RequireProfessor>
+            }
+          />
+          <Route
+            path="/grupos/:grupoId"
+            element={
+              <RequireProfessor>
+                <DetalheGrupo />
+              </RequireProfessor>
+            }
+          />
+          <Route path="/" element={<Navigate to="/login" replace />} />
+          <Route path="*" element={<Navigate to="/login" replace />} />
+        </Routes>
+      </AuthProvider>
+    </ThemeProvider>
+  );
+}

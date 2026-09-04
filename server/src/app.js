@@ -12,7 +12,10 @@ const allowedOrigins = [
   process.env.CLIENT_ORIGIN,
 ].filter(Boolean);
 
+// Headers de segurança (CSP, HSTS, X-Frame-Options, etc.)
 app.use(helmet());
+
+// Política estrita de CORS: apenas as origens do front-end
 app.use(
   cors({
     origin(origin, callback) {
@@ -24,7 +27,12 @@ app.use(
     },
   })
 );
-app.use(express.json());
+
+// Corpo JSON limitado (evita payloads abusivos)
+app.use(express.json({ limit: '100kb' }));
+
+// Proteção contra fingerprinting
+app.disable('x-powered-by');
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok' });

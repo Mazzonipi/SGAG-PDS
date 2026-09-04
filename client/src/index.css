@@ -1,36 +1,169 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 @import "tailwindcss";
 
+/*
+  IDENTIDADE VISUAL — SOFT DASHBOARD
+  Confortável, simples, intuitiva e lúdica.
+  Linguagem acolhedora e de fácil leitura para adolescentes e idosos:
+  cores suaves, alto contraste de texto, cantos arredondados,
+  alvos de toque generosos e foco visível.
+*/
+
 @theme inline {
-  --color-primary: var(--primary);
-  --color-primary-strong: var(--primary-strong);
-  --color-secondary: var(--secondary);
-  --color-secondary-strong: var(--secondary-strong);
-  --color-accent: var(--accent);
-  --color-bg: var(--bg);
+  --font-sans: 'Inter', 'Plus Jakarta Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-display: 'Plus Jakarta Sans', 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+
+  /* Superfícies */
+  --color-canvas: var(--canvas);
   --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-border: var(--border);
+
+  /* Primária (navegação/ações) — Azul Profundo */
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-soft: var(--primary-soft);
+  --color-primary-foreground: var(--primary-foreground);
+
+  /* Secundária (destaques/professor) — Índigo/Roxo */
+  --color-secondary: var(--secondary);
+  --color-secondary-hover: var(--secondary-hover);
+  --color-secondary-foreground: var(--secondary-foreground);
+
+  /* Acentos e feedback */
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+
+  /* Texto */
   --color-text: var(--text);
   --color-text-muted: var(--text-muted);
-  --color-danger: var(--danger);
-  --color-warning: var(--warning);
+
+  /* Badges pastéis (papéis) */
+  --color-badge-lider-bg: var(--badge-lider-bg);
+  --color-badge-lider-text: var(--badge-lider-text);
+  --color-badge-vice-bg: var(--badge-vice-bg);
+  --color-badge-vice-text: var(--badge-vice-text);
+  --color-badge-aluno-bg: var(--badge-aluno-bg);
+  --color-badge-aluno-text: var(--badge-aluno-text);
+  --color-badge-professor-bg: var(--badge-professor-bg);
+  --color-badge-professor-text: var(--badge-professor-text);
 }
 
 :root {
-  /* Paleta High-Contrast Neon / Dark Mode (docs/AGENT_RULES.md) */
-  --primary: #a855f7;      /* Roxo elétrico */
-  --primary-strong: #7c3aed;
-  --secondary: #22ff88;    /* Verde neon */
-  --secondary-strong: #16c47f;
-  --accent: #22d3ee;       /* Ciano neon */
-  --bg: #09090f;           /* Fundo escuro de alto contraste */
-  --surface: #131322;
-  --text: #f4f4f5;
-  --text-muted: #a1a1aa;
-  --danger: #ef4444;
-  --warning: #f59e0b;
+  /* Superfícies */
+  --canvas: #F8FAFC;
+  --surface: #FFFFFF;
+  --surface-muted: #F1F5F9;
+  --border: #E2E8F0;
+
+  /* Primária — Azul Profundo */
+  --primary: #1E3A8A;
+  --primary-hover: #172A5E;
+  --primary-soft: #DBEAFE;
+  --primary-foreground: #FFFFFF;
+
+  /* Secundária — Índigo */
+  --secondary: #6C5CE7;
+  --secondary-hover: #5B21B6;
+  --secondary-foreground: #FFFFFF;
+
+  /* Acentos */
+  --success: #10B981;
+  --success-soft: #D1FAE5;
+  --warning: #D97706;
+  --warning-soft: #FEF3C7;
+  --danger: #DC2626;
+  --danger-soft: #FEE2E2;
+
+  /* Texto (alto contraste) */
+  --text: #0F172A;
+  --text-muted: #64748B;
+
+  /* Badges pastéis */
+  --badge-lider-bg: #EDE9FE;
+  --badge-lider-text: #5B21B6;
+  --badge-vice-bg: #E0F2FE;
+  --badge-vice-text: #0369A1;
+  --badge-aluno-bg: #F1F5F9;
+  --badge-aluno-text: #475569;
+  --badge-professor-bg: #DBEAFE;
+  --badge-professor-text: #1E40AF;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  scroll-behavior: smooth;
 }
 
 body {
-  background-color: var(--bg);
+  background-color: var(--canvas);
   color: var(--text);
-  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-family: 'Inter', 'Plus Jakarta Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-size: 16px;
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Foco visível e acessível (navegação por teclado — importante para idosos) */
+:focus-visible {
+  outline: 3px solid rgba(30, 58, 138, 0.45);
+  outline-offset: 2px;
+  border-radius: 10px;
+}
+
+/*
+  TEMA ESCURO — Roxo Escuro
+  Paleta aconchegante baseada em tons de roxo profundo, com contraste
+  elevado e acentos violeta. Ativado pelo atributo data-theme="dark".
+*/
+:root[data-theme='dark'] {
+  --canvas: #120A1E;
+  --surface: #1B1130;
+  --surface-muted: #271A42;
+  --border: #2E2050;
+
+  --primary: #8B5CF6;
+  --primary-hover: #7C3AED;
+  --primary-soft: #32205B;
+  --primary-foreground: #FFFFFF;
+
+  --secondary: #A78BFA;
+  --secondary-hover: #8B5CF6;
+  --secondary-foreground: #120A1E;
+
+  --success: #34D399;
+  --success-soft: #123A33;
+  --warning: #FBBF24;
+  --warning-soft: #3A2E10;
+  --danger: #F87171;
+  --danger-soft: #3B1A24;
+
+  --text: #EDE9FE;
+  --text-muted: #B8ADD0;
+
+  --badge-lider-bg: #4C1D95;
+  --badge-lider-text: #DDD6FE;
+  --badge-vice-bg: #0C4A6E;
+  --badge-vice-text: #BAE6FD;
+  --badge-aluno-bg: #334155;
+  --badge-aluno-text: #CBD5E1;
+  --badge-professor-bg: #312E81;
+  --badge-professor-text: #C7D2FE;
+}
+
+/* Foco no tema escuro (violeta) */
+:root[data-theme='dark'] :focus-visible {
+  outline-color: rgba(139, 92, 246, 0.6);
+}
+
+/* Respeita a preferência por menos movimento */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
 }

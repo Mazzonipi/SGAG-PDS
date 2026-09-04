@@ -81,6 +81,7 @@ describe('Integracao completa da API /api (TDD)', () => {
       data: { user: { id: 'prof-1' }, session: { access_token: 'jwt' } },
       error: null,
     });
+    supabase.queue('profiles', { data: { id: 'prof-1', email: 'prof@escola.com' }, error: null });
     supabase.queue('profiles', { data: PERFIL_PROFESSOR, error: null });
 
     const res = await request(app)
@@ -106,7 +107,10 @@ describe('Integracao completa da API /api (TDD)', () => {
     const supabase = holder.supabase;
     const token = autenticarComo(supabase, PERFIL_PROFESSOR);
     supabase.auth.admin.createUser.mockResolvedValue({ data: { user: { id: 'lider-1' } }, error: null });
-    supabase.queue('profiles', { data: null, error: null });
+    supabase.queue('profiles', {
+      data: { id: 'lider-1', nome: 'Ana Lider', email: 'lider@escola.com', role: 'lider', is_active: true },
+      error: null,
+    });
     supabase.queue('audit_logs', { data: null, error: null });
 
     const res = await request(app)
@@ -397,6 +401,58 @@ describe('Integracao completa da API /api (TDD)', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.logs).toEqual([]);
+  });
+
+  it('GET /api/grupos/:grupoId retorna detalhe do grupo (professor)', async () => {
+    const supabase = holder.supabase;
+    const token = autenticarComo(supabase, PERFIL_PROFESSOR);
+    supabase.queue('grupos', {
+      data: {
+        id: 'g1',
+        turma_id: 'turma-3a',
+        nome: 'Grupo Alfa',
+        lider: { id: 'lider-1', nome: 'Ana Lider', email: 'lider@escola.com' },
+        vice: { id: 'vice-1', nome: 'Bia Vice', email: 'vice@escola.com' },
+      },
+      error: null,
+    });
+    supabase.queue('integrantes', { data: [INTEGRANTE], error: null });
+    supabase.queue('avaliacoes', {
+      data: [{ id: 'av1', integrante_id: 'i1', nota_total: 0.85, alterado_por_professor: false }],
+      error: null,
+    });
+
+    const res = await request(app).get('/api/grupos/g1').set('Authorization', token);
+
+    expect(res.status).toBe(200);
+    expect(res.body.grupo.lider.nome).toBe('Ana Lider');
+    expect(res.body.grupo.media_geral).toBe(0.85);
+  });
+
+  it('GET /api/grupos/:grupoId e bloqueado para nao-professor com HTTP 403', async () => {
+    const supabase = holder.supabase;
+    const token = autenticarComo(supabase, PERFIL_LIDER);
+
+    const res = await request(app).get('/api/grupos/g1').set('Authorization', token);
+
+    expect(res.status).toBe(403);
+  });
+
+  it('GET /api/grupos/me retorna o grupo do lider autenticado', async () => {
+    const supabase = holder.supabase;
+    const token = autenticarComo(supabase, PERFIL_LIDER);
+    supabase.queue('grupos', {
+      data: { id: 'g1', turma_id: 'turma-3a', nome: 'Grupo Alfa', lider_id: 'lider-1', vice_lider_id: 'vice-1' },
+      error: null,
+    });
+    supabase.queue('turmas', { data: { id: 'turma-3a', nome: '3A' }, error: null });
+    supabase.queue('integrantes', { data: [INTEGRANTE], error: null });
+
+    const res = await request(app).get('/api/grupos/me').set('Authorization', token);
+
+    expect(res.status).toBe(200);
+    expect(res.body.grupo.turma_nome).toBe('3A');
+    expect(res.body.grupo.integrantes).toHaveLength(1);
   });
 
   it('rotas inexistentes retornam HTTP 404', async () => {
